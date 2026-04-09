@@ -15,7 +15,7 @@ function RequireOrg({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/grantradar">
       <Routes>
         <Route path="/onboarding" element={<Onboarding />} />
         <Route

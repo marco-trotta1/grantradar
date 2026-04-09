@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { grantApi, getLocalOrgId } from "../lib/api";
+import { grantApi, savedApi, getLocalOrgId } from "../lib/api";
 import { GrantCard } from "../components/GrantCard";
 import { useOrg } from "../hooks/useOrg";
 
@@ -18,7 +18,7 @@ export function Dashboard() {
 
   const { data: saved } = useQuery({
     queryKey: ["saved", orgId],
-    queryFn: () => import("../lib/api").then((m) => m.savedApi.list(orgId)),
+    queryFn: () => savedApi.list(orgId),
     enabled: !!orgId,
   });
 
