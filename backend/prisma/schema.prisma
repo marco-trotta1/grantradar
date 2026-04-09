@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Grant {
+  id          String   @id @default(cuid())
+  externalId  String   @unique @map("external_id")
+  title       String
+  funder      String
+  deadline    DateTime?
+  amountMin   Int?     @map("amount_min")
+  amountMax   Int?     @map("amount_max")
+  eligibility String[]
+  description String   @db.Text
+  category    String[]
+  sourceUrl   String   @map("source_url")
+  source      String   @default("grants.gov")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  matches     Match[]
+  savedBy     SavedGrant[]
+
+  @@map("grants")
+}
+
+model Organization {
+  id            String   @id @default(cuid())
+  clerkUserId   String?  @unique @map("clerk_user_id")
+  name          String
+  orgType       OrgType  @map("org_type")
+  mission       String   @db.Text
+  location      String
+  city          String?
+  state         String?
+  budgetSize    BudgetSize @map("budget_size")
+  focusAreas    String[] @map("focus_areas")
+  staffCapacity StaffSize @map("staff_capacity")
+  website       String?
+  ein           String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  matches       Match[]
+  savedGrants   SavedGrant[]
+
+  @@map("organizations")
+}
+
+model Match {
+  id           String   @id @default(cuid())
+  orgId        String   @map("org_id")
+  grantId      String   @map("grant_id")
+  score        Int      // 0–100
+  summary      String?  @db.Text  // Claude-generated 3-sentence summary
+  effortLevel  EffortLevel? @map("effort_level")
+  reasoning    String?  @db.Text  // Claude's scoring rationale
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  grant        Grant        @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, grantId])
+  @@map("matches")
+}
+
+model SavedGrant {
+  id           String   @id @default(cuid())
+  orgId        String   @map("org_id")
+  grantId      String   @map("grant_id")
+  notes        String?  @db.Text
+  reminder30   Boolean  @default(false) @map("reminder_30")
+  reminder7    Boolean  @default(false) @map("reminder_7")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  grant        Grant        @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, grantId])
+  @@map("saved_grants")
+}
+
+enum OrgType {
+  NONPROFIT
+  SCHOOL
+  COMMUNITY_ORG
+  GOVERNMENT
+}
+
+enum BudgetSize {
+  UNDER_100K
+  FROM_100K_TO_500K
+  FROM_500K_TO_1M
+  FROM_1M_TO_5M
+  OVER_5M
+}
+
+enum StaffSize {
+  VOLUNTEER_ONLY
+  ONE_TO_FIVE
+  SIX_TO_TWENTY
+  OVER_TWENTY
+}
+
+enum EffortLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
