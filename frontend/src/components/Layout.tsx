@@ -19,11 +19,14 @@ export function Layout() {
         <div>
           {/* Logo */}
           <div className="h-20 flex items-center px-6 border-b border-slate-50">
-            <div className="flex items-center gap-2.5">
-              <div className="bg-brand-50 text-brand-600 p-2 rounded-xl">
-                <i className="ph ph-radar text-2xl animate-pulse-slow" />
+            <div className="flex items-center gap-2">
+              <div
+                className="w-7 h-7 rounded-md flex items-center justify-center text-white font-bold text-sm"
+                style={{ backgroundColor: "#E8511A" }}
+              >
+                G
               </div>
-              <span className="font-serif text-2xl tracking-tight text-slate-900 font-semibold mt-0.5">
+              <span className="font-sans text-xl font-semibold tracking-tight text-slate-800">
                 GrantRadar
               </span>
             </div>
@@ -105,21 +108,7 @@ export function Layout() {
               "radial-gradient(ellipse at top right, rgba(245,243,255,0.5) 0%, transparent 60%)",
           }}
         />
-        {/* Top header with logo */}
-        <header className="relative z-20 flex items-center justify-end px-6 h-14 border-b border-slate-100 bg-white/70 backdrop-blur-sm shrink-0">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-7 h-7 rounded-md flex items-center justify-center text-white font-bold text-sm"
-              style={{ backgroundColor: "#E8511A" }}
-            >
-              G
-            </div>
-            <span className="font-sans text-lg font-semibold tracking-tight text-slate-800">
-              GrantRadar
-            </span>
-          </div>
-        </header>
-        <div className="flex-1 overflow-y-auto relative z-10">
+<div className="flex-1 overflow-y-auto relative z-10">
           <Outlet />
         </div>
       </main>
