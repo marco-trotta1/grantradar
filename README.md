@@ -2,6 +2,8 @@
 
 GrantRadar helps U.S. schools find and review grants. The service is free to school staff.
 
+[Open GrantRadar](https://grantradar-schools.vercel.app).
+
 The production app uses Next.js, React, and strict TypeScript. Vercel hosts the app and its search routes.
 
 ## Use the app
@@ -123,3 +125,5 @@ Vercel deploys the root Next.js app. The GitHub workflow checks tests, the produ
 The original `frontend/`, `backend/`, and static assets remain as legacy source. The production deployment excludes these directories.
 
 The former backend requires database and provider credentials. It is not part of the current app and receives no production traffic.
+
+The previous GitHub Pages address redirects to the production app.
