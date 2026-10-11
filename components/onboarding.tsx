@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
+
 import { useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, Check, School, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { gradeLabels, priorities, profileSchema, schoolTypes, states, type SchoolProfile } from "@/lib/domain";
 
 interface Props { initial?: SchoolProfile; onSave: (profile: SchoolProfile) => void; onCancel?: () => void }
@@ -64,12 +66,12 @@ export function Onboarding({ initial, onSave, onCancel }: Props) {
           <label className="field">Your project <span className="muted">Optional</span><textarea value={mission} onChange={event => setMission(event.target.value)} maxLength={1200} rows={3} placeholder="What would you like to fund? Keep student names and personal details out of this field." /></label>
         </>}
         <div className="onboarding-actions">{step === 1 && <button type="button" className="button secondary" onClick={() => { setStep(0); setError(""); }}><ArrowLeft size={16} />Back</button>}<button className="button primary" type="submit">{step === 0 ? "Continue" : initial ? "Save school profile" : "Find my school’s grants"}<ArrowRight size={17} /></button></div>
-        <p className="privacy-note">Your profile and saved grants stay in this browser. <a href="/privacy">How we use your data</a></p>
+        <p className="privacy-note">Your profile and saved grants save to your private account. <a href="/privacy">How we use your data</a></p>
       </form>
     </main>
   </div>;
 }
 
 export function Brand() {
-  return <a className="brand" href="/" aria-label="GrantRadar home"><span className="brand-mark" aria-hidden="true"><School size={21} strokeWidth={1.6} /></span><span>Grant<span className="brand-light">Radar</span></span></a>;
+  return <a className="brand" href="/" aria-label="GrantRadar home"><Image className="brand-symbol" src="/logo.png" width={36} height={36} sizes="36px" priority alt="" /><span>Grant<span className="brand-light">Radar</span></span></a>;
 }

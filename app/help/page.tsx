@@ -1,0 +1,16 @@
+import { Brand } from "@/components/onboarding";
+
+export default function Help() {
+  return <main id="main" className="privacy-page help-page"><Brand /><h1>A clear start for your school.</h1><p>GrantRadar is free. School staff do not need an API key or a password.</p>
+    <h2>Start in four steps</h2><ol><li>Enter your school email. Use the code from the latest sign-in email.</li><li>Enter your school details and funding priorities.</li><li>Search grants. Read each match score and confirm the source rules.</li><li>Save useful grants. Record notes and track each application stage.</li></ol>
+    <h2>Use another device</h2><p>Sign in with the same email address. Your school profile and saved work load from your account.</p><p>Each email has its own workspace. GrantRadar does not join accounts because they use the same school name or email domain.</p>
+    <h2>Keep existing work</h2><p>After sign-in, GrantRadar detects the older workspace in this browser. Select “Move workspace to my account” to save it in the cloud.</p><p>You can also import a GrantRadar JSON backup from the school settings. Importing replaces the current account workspace.</p>
+    <h2>The sign-in code does not arrive</h2><p>Check the email address and spam folder. Wait one minute before requesting another code. Use the latest code within 10 minutes.</p><p>A school email filter can block a new sender. Ask your technology team to allow emails from mail.grantradar.irrigant.xyz.</p>
+    <h2>Check the cloud save</h2><p>The account bar shows “Saved to cloud” after the server confirms the change. Pending changes stay in a recovery draft on this device.</p><p>If saving fails, check the connection and select “Retry cloud save”. Download your work if you need to leave before the save completes.</p>
+    <h2>Resolve changes from two devices</h2><p>GrantRadar stops a stale device from replacing newer cloud work. Download the device version, then choose which version to keep.</p><p>Open the school settings to restore one of the last 10 previous cloud saves.</p>
+    <h2>Search beyond federal grants</h2><p>Select Web search to open Google with your school location and funding priority. Add a grant link to score and track a result.</p><p>Program links and added grants need a source review. Confirm the current application cycle, applicant rules, award amount, and deadline.</p>
+    <h2>Understand a match score</h2><p>A fixed rubric compares priorities, applicant type, location, funding goal, and application timing. A score does not predict an award.</p><p>Unknown eligibility and unverified information limit the score. The grant details show each scoring factor.</p>
+    <h2>Get help</h2><p><a href="https://github.com/marco-trotta1/grantradar/issues/new?title=School%20support" target="_blank" rel="noreferrer">Report a problem</a> through the project’s issue page. A GitHub account is required.</p><p>Include the screen name and what you expect to happen. Do not include sign-in codes, student information, or private school notes.</p>
+    <div className="data-actions"><a className="button primary" href="/">Open my workspace</a><a className="button secondary" href="/privacy">Privacy & your data</a></div>
+  </main>;
+}

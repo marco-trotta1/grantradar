@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "GrantRadar · Find funding for your school",
   description: "Find education grants, see how they fit your school, and keep your applications in one place. Free for schools.",
-  icons: { icon: "/icon.svg" },
+  icons: { icon: "/logo.png", apple: "/logo.png" },
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#243e4a" };
 
