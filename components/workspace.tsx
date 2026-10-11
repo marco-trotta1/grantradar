@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, Bookmark, CalendarDays, Check, ChevronRight, CircleHelp, Download, ExternalLink, FileText, GraduationCap, LoaderCircle, Search, Settings2, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, Bookmark, CalendarDays, Check, ChevronRight, CircleHelp, Cloud, Download, ExternalLink, FileText, GraduationCap, LoaderCircle, LogOut, Search, Settings2, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
 import { Onboarding, Brand } from "./onboarding";
 import { GrantDetail } from "./grant-detail";
 import { AddGrant } from "./add-grant";
-import { deadlineLabel, daysUntil, money, priorities, schoolTypes, searchResponseSchema, stages, workspaceSchema, type Grant, type SavedGrant, type SchoolProfile, type SearchResponse, type Workspace } from "@/lib/domain";
+import { deadlineLabel, daysUntil, money, priorities, schoolTypes, searchResponseSchema, stages, workspaceSchema, type Grant, type SavedGrant, type SchoolProfile, type SearchResponse } from "@/lib/domain";
 import { scoreGrant } from "@/lib/scoring";
 import { calendarFile, csvFile, download, exportWorkspace } from "@/lib/export";
+import { useCloudWorkspace } from "@/lib/use-cloud-workspace";
+import { historySchema, type WorkspaceHistory } from "@/lib/cloud";
+import { createClient } from "@/lib/supabase/client";
 
-const storageKey = "grantradar.school.v1";
 type Page = "discover" | "saved" | "applications" | "school";
 type Mode = "all" | "federal" | "directory" | "web";
 const pages: { id: Page; label: string; icon: typeof Search }[] = [
@@ -18,13 +20,14 @@ const pages: { id: Page; label: string; icon: typeof Search }[] = [
 ];
 const modes: { id: Mode; label: string }[] = [{ id: "all", label: "All sources" }, { id: "federal", label: "Federal grants" }, { id: "directory", label: "Program directory" }, { id: "web", label: "Web search" }];
 
-export function WorkspaceApp() {
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [ready, setReady] = useState(false);
+export function WorkspaceApp({ account }: { account: { id: string; email: string } }) {
+  const { workspace, load, sync, persist, saveNow, loadCloud, resolveConflict, legacy, importLegacy } = useCloudWorkspace(account.id);
   const [page, setPage] = useState<Page>("discover");
   const [editing, setEditing] = useState(false);
   const [toast, setToast] = useState("");
-  const [storageError, setStorageError] = useState("");
+  const [accountError, setAccountError] = useState("");
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [history, setHistory] = useState<WorkspaceHistory | null>(null);
   const [data, setData] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -44,18 +47,7 @@ export function WorkspaceApp() {
   const school = workspace?.profile;
   const profileKey = JSON.stringify(school ?? null);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = workspaceSchema.safeParse(JSON.parse(raw));
-        if (parsed.success) setWorkspace(parsed.data);
-        else setStorageError("This browser’s saved data could not be read. Restore a valid backup or create a new school profile.");
-      }
-    } catch { setStorageError("Browser storage is unavailable or contains unreadable data. Check the browser settings before you continue."); }
-    setReady(true);
-    return () => request.current?.abort();
-  }, []);
+  useEffect(() => () => request.current?.abort(), []);
 
   useEffect(() => {
     if (school) { setQuery(""); void runSearch({ nextMode: "all", text: "", profile: school }); }
@@ -65,11 +57,33 @@ export function WorkspaceApp() {
 
   useEffect(() => { if (toast) { const timer = setTimeout(() => setToast(""), 4500); return () => clearTimeout(timer); } }, [toast]);
 
-  function persist(next: Workspace): boolean {
+  async function signOut() {
+    setAccountBusy(true); setAccountError("");
+    if (!await saveNow()) { setAccountError("Save or resolve your pending changes before you sign out."); setAccountBusy(false); return; }
+    const { error } = await createClient().auth.signOut({ scope: "local" });
+    if (error) { setAccountError("Sign-out could not finish. Try again."); setAccountBusy(false); return; }
+    window.location.assign("/login");
+  }
+
+  async function loadHistory() {
+    setAccountError("");
     try {
-      localStorage.setItem(storageKey, JSON.stringify(next));
-      setWorkspace(next); setStorageError(""); return true;
-    } catch { setStorageError("The browser could not save your changes. Export a backup and check the browser’s storage settings."); return false; }
+      const response = await fetch("/api/workspace/history", { cache: "no-store" });
+      if (!response.ok) throw new Error("Previous saves could not load. Try again.");
+      setHistory(historySchema.parse(await response.json()));
+    } catch (error) { setAccountError(error instanceof Error ? error.message : "Previous saves could not load."); }
+  }
+
+  async function deleteAccount() {
+    if (window.prompt("This permanently deletes your account, school workspace, and save history. Type DELETE to continue.") !== "DELETE") return;
+    setAccountBusy(true); setAccountError("");
+    if (!await saveNow()) { setAccountError("Save or resolve your pending changes before you delete your account."); setAccountBusy(false); return; }
+    try {
+      const response = await fetch("/api/account", { method: "DELETE" });
+      if (!response.ok) throw new Error("Your account could not be deleted. Try again or contact support.");
+      localStorage.removeItem(`grantradar.draft.${account.id}`);
+      window.location.assign("/login");
+    } catch (error) { setAccountError(error instanceof Error ? error.message : "Your account could not be deleted."); setAccountBusy(false); }
   }
 
   async function runSearch({ nextMode = mode, text = query, profile = school, nextPage = 0 }: { nextMode?: Mode; text?: string; profile?: SchoolProfile; nextPage?: number } = {}) {
@@ -91,7 +105,7 @@ export function WorkspaceApp() {
   function saveGrant(grant: Grant): boolean {
     if (!workspace) return false;
     if (workspace.saved.some(item => item.grant.id === grant.id)) return true;
-    if (workspace.saved.length >= 500) { setToast("Export your saved grants before you add more. This browser supports 500 saved grants."); return false; }
+    if (workspace.saved.length >= 500) { setToast("Export your saved grants before you add more. Your workspace supports 500 saved grants."); return false; }
     const saved = persist({ ...workspace, saved: [...workspace.saved, { grant, stage: "saved", notes: "", savedAt: new Date().toISOString() }] });
     if (saved) setToast("Grant saved. You can find it in Saved grants.");
     return saved;
@@ -102,7 +116,7 @@ export function WorkspaceApp() {
   }
 
   function removeSaved(id: string) {
-    if (!workspace || !window.confirm("Remove this saved grant and its notes from this browser?")) return;
+    if (!workspace || !window.confirm("Remove this saved grant and its notes from your account?")) return;
     if (persist({ ...workspace, saved: workspace.saved.filter(item => item.grant.id !== id) })) setToast("Grant removed.");
   }
 
@@ -112,16 +126,22 @@ export function WorkspaceApp() {
     try {
       const parsed = workspaceSchema.safeParse(JSON.parse(await file.text()));
       if (!parsed.success) { setToast("This file is not a valid GrantRadar backup."); return; }
-      if (workspace && !window.confirm("Restore this backup? It replaces this browser’s school profile and saved grants.")) return;
+      if (workspace && !window.confirm("Restore this backup? It replaces your account’s school profile and saved grants on all devices.")) return;
       if (persist(parsed.data)) { setEditing(false); setPage("discover"); setToast("School workspace restored."); }
     } catch { setToast("The backup could not be read. Choose a GrantRadar JSON backup."); }
     finally { if (fileInput.current) fileInput.current.value = ""; }
   }
 
   const backupInput = <input ref={fileInput} type="file" accept="application/json,.json" className="sr-only" aria-label="Restore a GrantRadar backup" onChange={event => void restore(event.target.files?.[0])} />;
-  if (!ready) return <main id="main" className="app-loading"><Brand /><LoaderCircle className="spin" size={24} /><p>Opening your school workspace…</p></main>;
-  if (!school || !workspace || editing) return <>{storageError && <div className="notice error top-notice" role="alert">{storageError}</div>}<Onboarding initial={editing ? school : undefined} onCancel={editing ? () => setEditing(false) : undefined} onSave={profile => {
-    if (storageError && !window.confirm("Replace the unreadable data with a new school profile?")) return;
+  const syncNotice = <>
+    {sync.kind === "error" && <div className="notice error" role="alert">{sync.message}<button className="text-button" onClick={() => void saveNow()}>Retry cloud save</button><a href="/login">Sign in again</a>{workspace && <button className="text-button" onClick={() => exportWorkspace(workspace)}>Download my work</button>}</div>}
+    {sync.kind === "conflict" && <section className="notice conflict-notice" role="alert"><div><strong>Your workspace changes on another device.</strong><p>Your device has {workspace?.saved.length ?? 0} saved grants. The cloud has {sync.remote.workspace?.saved.length ?? 0}. Choose the version to continue.</p>{sync.remote.updatedAt && <p>Cloud save: {new Date(sync.remote.updatedAt).toLocaleString("en-US")}. Download both versions to review their notes.</p>}</div><div className="conflict-actions">{workspace && <button className="button secondary" onClick={() => exportWorkspace(workspace)}>Download device version</button>}{sync.remote.workspace && <button className="button secondary" onClick={() => { if (sync.remote.workspace) exportWorkspace(sync.remote.workspace); }}>Download cloud version</button>}<button className="button secondary" onClick={() => { if (window.confirm("Use the cloud version? This replaces the pending changes on this device.")) resolveConflict("cloud"); }}>Use cloud version</button><button className="button primary" onClick={() => { if (window.confirm("Save this device’s version to the cloud? It replaces the current cloud version on all devices.")) resolveConflict("device"); }}>Save device version</button></div></section>}
+    {accountError && <p className="notice error" role="alert">{accountError}</p>}
+  </>;
+  const accountBar = <div className="account-bar"><span className={`cloud-status ${sync.kind}`} role="status"><Cloud size={15} />{sync.kind === "saved" ? workspace ? "Saved to cloud" : "Cloud connected" : sync.kind === "saving" ? "Saving to cloud…" : sync.kind === "pending" ? "Changes waiting to save" : sync.kind === "conflict" ? "Review device changes" : "Cloud needs attention"}</span><span className="account-email">{account.email}</span><button className="text-button" disabled={accountBusy} onClick={() => void signOut()}><LogOut size={14} />Sign out</button></div>;
+  if (load.kind === "loading") return <main id="main" className="app-loading"><Brand /><LoaderCircle className="spin" size={24} /><p>Opening your school workspace…</p></main>;
+  if (load.kind === "error") return <main id="main" className="app-loading"><Brand /><p className="notice error" role="alert">{load.message}</p><button className="button primary" onClick={() => void loadCloud()}>Try again</button><a href="/login">Sign in again</a><a href="/help">Get help</a></main>;
+  if (!school || !workspace || editing) return <>{accountBar}<div className="onboarding-notices">{syncNotice}{legacy && <section className="notice"><strong>Keep your existing work.</strong><p>This browser has a workspace for {legacy.profile.name}. Move it into this account to access it on all devices.</p><button className="button primary" onClick={importLegacy}>Move workspace to my account</button><button className="text-button" onClick={() => exportWorkspace(legacy)}>Download existing workspace</button></section>}</div><Onboarding initial={editing ? school : undefined} onCancel={editing ? () => setEditing(false) : undefined} onSave={profile => {
     if (persist({ version: 1, profile, saved: workspace?.saved ?? [] })) { setEditing(false); setToast("School profile saved."); }
   }} /><div className="restore-onboarding">Already have a backup? <button className="text-button" onClick={() => fileInput.current?.click()}>Restore your school workspace</button></div>{backupInput}{toast && <div className="toast" role="status">{toast}</div>}</>;
 
@@ -140,9 +160,9 @@ export function WorkspaceApp() {
       <nav aria-label="Main navigation">{pages.map(item => <button key={item.id} onClick={() => navigate(item.id)} className={`nav-item ${page === item.id ? "active" : ""}`} aria-current={page === item.id ? "page" : undefined}><item.icon size={19} />{item.label}{item.id === "saved" && saved.length > 0 && <span className="nav-count">{saved.length}</span>}</button>)}</nav>
       <div className="sidebar-bottom"><div className="community-note"><span className="small-school"><GraduationCap size={19} /></span><strong>Made for schools.</strong><p>More time for students.<br />A little help with funding.</p><span className="free-label">Always free to use</span></div><button className="nav-item" onClick={() => setHelp(!help)}><CircleHelp size={18} />How GrantRadar works</button><a className="sidebar-privacy" href="/privacy">Privacy & your data</a></div>
     </aside>
-    <div className="main-shell"><header className="topbar"><span className="breadcrumb">Your workspace<ChevronRight size={14} /><strong>{pages.find(item => item.id === page)?.label}</strong></span><button className="school-switch" onClick={() => navigate("school")}><span className="tiny-avatar">{school.name[0]}</span><span>{school.name}</span><Settings2 size={15} /></button></header>
+    <div className="main-shell">{accountBar}<header className="topbar"><span className="breadcrumb">Your workspace<ChevronRight size={14} /><strong>{pages.find(item => item.id === page)?.label}</strong></span><button className="school-switch" onClick={() => navigate("school")}><span className="tiny-avatar">{school.name[0]}</span><span>{school.name}</span><Settings2 size={15} /></button></header>
       <main id="main" className="workspace-main">
-        {storageError && <div className="notice error" role="alert">{storageError}</div>}
+        {syncNotice}
         {help && <section className="help-panel"><button className="icon-button help-close" onClick={() => setHelp(false)} aria-label="Close help"><X size={18} /></button><h2>A clearer path to school funding.</h2><div className="help-grid"><div><strong>1. Tell us about your school</strong><p>Set your location, applicant type, funding goal, and priorities.</p></div><div><strong>2. Find and review grants</strong><p>Search federal opportunities and program links. Open each match to see its score and source.</p></div><div><strong>3. Keep the next step clear</strong><p>Save grants, track application stages, and export a backup or calendar deadline.</p></div></div><p className="muted">Scores use a fixed rubric: priorities 35, applicant type 25, location 15, funding goal 15, timing 10. Evidence limits can reduce the score.</p></section>}
 
         {page === "discover" && <>
@@ -166,15 +186,18 @@ export function WorkspaceApp() {
           <div className="page-heading"><div><p className="greeting">Your funding workspace</p><h1>{page === "saved" ? "Good opportunities, kept close." : "One next step at a time."}</h1><p className="muted">{page === "saved" ? "Your shortlist, with room for notes and a plan." : "Track each application from the first look to the final decision."}</p></div><div className="heading-actions"><button className="button secondary" onClick={() => setAddingGrant(true)}>Add a grant link<Bookmark size={15} /></button><button className="button secondary" disabled={!saved.length} onClick={() => download({ content: csvFile(saved), name: "grantradar-saved-grants.csv", type: "text/csv;charset=utf-8" })}><Download size={16} />Export CSV</button></div></div>
           {page === "applications" && <><div className="pipeline">{Object.entries(stages).map(([stage, label]) => <div key={stage}><span>{label}</span><strong>{saved.filter(item => item.stage === stage).length}</strong></div>)}</div>{deadlines.length > 0 && <div className="deadline-callout"><CalendarDays size={20} /><div><strong>{deadlines.length} saved {deadlines.length === 1 ? "deadline" : "deadlines"} in the next 30 days</strong><p>Next: {deadlines[0].grant.title} · {deadlineLabel(deadlines[0].grant.deadline)}</p></div></div>}</>}
           {saved.length ? <div className="saved-list">{saved.map(item => { const match = scoreGrant({ grant: item.grant, school }); return <article className="saved-row" key={item.grant.id}><div className="saved-row-heading"><div><p className="funder">{item.grant.funder}</p><button className="grant-title" onClick={() => setDetail(item.grant)}>{item.grant.title}</button><p className="saved-meta">{deadlineLabel(item.grant.deadline)} · {money(item.grant.amountMax)} · Match {match.score}/100</p></div><button className="icon-button" onClick={() => removeSaved(item.grant.id)} aria-label={`Remove ${item.grant.title}`}><Trash2 size={17} /></button></div><div className="saved-row-controls"><label className="field">Application stage<select value={item.stage} onChange={event => updateSaved(item.grant.id, { stage: event.target.value as SavedGrant["stage"] })}>{Object.entries(stages).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label className="field notes-field">Your notes<textarea value={item.notes} maxLength={5000} rows={2} onChange={event => updateSaved(item.grant.id, { notes: event.target.value })} placeholder="Next steps, documents, or questions for the funder. No student data." /></label></div><div className="saved-row-footer"><a href={item.grant.url} target="_blank" rel="noopener noreferrer">Open source<ExternalLink size={13} /></a>{item.grant.deadline && <button className="text-button" onClick={() => { const content = calendarFile(item.grant); if (content) download({ content, name: "grant-deadline.ics", type: "text/calendar" }); }}><CalendarDays size={14} />Export calendar deadline</button>}<span className="muted">Snapshot: {new Date(item.grant.retrievedAt).toLocaleDateString("en-US")}</span></div></article>; })}</div> : <div className="empty-state"><Bookmark size={30} /><h3>Your shortlist starts here.</h3><p>Save an opportunity to keep its details, add notes, and track the application.</p><button className="button primary" onClick={() => navigate("discover")}>Find grants<ArrowRight size={16} /></button></div>}
-          <p className="privacy-note">Saved details are snapshots. Confirm the current deadline with the funder. Export a backup to keep your notes safe.</p>
+          <p className="privacy-note">Saved details are snapshots. Confirm the current deadline with the funder. Your notes save automatically to your account.</p>
         </>}
 
         {page === "school" && <><div className="page-heading"><div><p className="greeting">The starting point for every match</p><h1>Your school, your priorities.</h1><p className="muted">Keep the school profile current so each match stays useful.</p></div><button className="button primary" onClick={() => setEditing(true)}>Edit school profile<Settings2 size={16} /></button></div>
-          <section className="profile-panel"><div className="profile-title"><span className="school-avatar large"><GraduationCap size={28} /></span><div><h2>{school.name}</h2><p className="muted">{schoolTypes[school.schoolType]} · {school.city}, {school.state}</p></div></div><dl className="profile-details"><div><dt>Students served</dt><dd>{school.students.toLocaleString()}</dd></div><div><dt>Funding goal</dt><dd>{money(school.fundingGoal)}</dd></div><div><dt>School setting</dt><dd>{school.locale}</dd></div><div><dt>Title I funding</dt><dd>{school.titleI ? "Yes" : "No"}</dd></div><div><dt>Grade bands</dt><dd>{school.grades.join(", ")}</dd></div><div><dt>Application support</dt><dd>{school.capacity === "limited" ? "One person, limited time" : school.capacity === "small-team" ? "A small team" : "Dedicated grant support"}</dd></div></dl><h3>Funding priorities</h3><div className="detail-tags">{school.priorities.map(priority => <span className="badge green" key={priority}>{priority}</span>)}</div>{school.mission && <><h3>Your project</h3><p>{school.mission}</p><p className="privacy-note">This description stays in your browser. Scores use your selected priorities and profile fields.</p></>}</section>
-          <section className="data-panel"><h2>Your data stays with you.</h2><p>The profile, saved grants, and notes stay in this browser. Use a backup to move to another device.</p><div className="data-actions"><button className="button secondary" onClick={() => exportWorkspace(workspace)}><Download size={16} />Export backup</button><button className="button secondary" onClick={() => fileInput.current?.click()}><Upload size={16} />Restore backup</button><button className="text-button danger" onClick={() => { if (window.confirm("Clear this browser’s school profile, saved grants, and notes? Export a backup first if you need them.")) { try { localStorage.removeItem(storageKey); setWorkspace(null); setData(null); setPage("discover"); } catch { setStorageError("The browser could not clear the saved data. Check the browser settings."); } } }}><Trash2 size={15} />Clear this browser’s data</button></div><a href="/privacy">Privacy & your data<ExternalLink size={13} /></a></section>
+          <section className="profile-panel"><div className="profile-title"><span className="school-avatar large"><GraduationCap size={28} /></span><div><h2>{school.name}</h2><p className="muted">{schoolTypes[school.schoolType]} · {school.city}, {school.state}</p></div></div><dl className="profile-details"><div><dt>Students served</dt><dd>{school.students.toLocaleString()}</dd></div><div><dt>Funding goal</dt><dd>{money(school.fundingGoal)}</dd></div><div><dt>School setting</dt><dd>{school.locale}</dd></div><div><dt>Title I funding</dt><dd>{school.titleI ? "Yes" : "No"}</dd></div><div><dt>Grade bands</dt><dd>{school.grades.join(", ")}</dd></div><div><dt>Application support</dt><dd>{school.capacity === "limited" ? "One person, limited time" : school.capacity === "small-team" ? "A small team" : "Dedicated grant support"}</dd></div></dl><h3>Funding priorities</h3><div className="detail-tags">{school.priorities.map(priority => <span className="badge green" key={priority}>{priority}</span>)}</div>{school.mission && <><h3>Your project</h3><p>{school.mission}</p><p className="privacy-note">This description saves to your private account. Scores use your selected priorities and profile fields.</p></>}</section>
+          <section className="data-panel"><h2>Your work goes with you.</h2><p>Your school profile, saved grants, stages, and notes save automatically to your account. Use the same email on each device.</p><div className="data-actions"><button className="button secondary" onClick={() => exportWorkspace(workspace)}><Download size={16} />Export backup</button><button className="button secondary" onClick={() => fileInput.current?.click()}><Upload size={16} />Restore backup</button><button className="button secondary" onClick={() => void loadHistory()}>Previous cloud saves</button></div>
+            {history && <div className="save-history"><h3>Recent save history</h3><p className="privacy-note">Your account keeps the last 10 previous saves. Restoring creates a new current version.</p>{history.length ? history.map(item => <div className="history-row" key={item.revision}><span>{new Date(item.savedAt).toLocaleString("en-US")}<small>{item.workspace.profile.name} · {item.workspace.saved.length} saved grants</small></span><button className="button secondary" onClick={() => { if (window.confirm("Restore this cloud save? It replaces your current workspace on all devices.")) { if (persist(item.workspace)) { setHistory(null); setToast("Previous save restored. Saving to cloud…"); } } }}>Restore</button></div>) : <p>No previous saves yet. Your next change starts the save history.</p>}</div>}
+            <a href="/privacy">Privacy & your data<ExternalLink size={13} /></a></section>
+          <section className="data-panel"><h2>Your account</h2><p>Signed in as <strong>{account.email}</strong>. Each email has its own workspace. Sign out on shared computers.</p><div className="data-actions"><button className="button secondary" disabled={accountBusy} onClick={() => void signOut()}><LogOut size={15} />Sign out</button><button className="text-button danger" disabled={accountBusy} onClick={() => void deleteAccount()}>Delete my account and data</button></div><p className="privacy-note">Deleting the account removes its cloud workspace and save history. Export a backup first if you need a copy.</p></section>
           <section className="data-panel"><h2>Connected grant sources</h2><div className="connection-row"><span><span className="status-dot" />Grants.gov</span><span>Public federal search</span><a href="https://www.grants.gov/search-grants" target="_blank" rel="noreferrer">Open source<ExternalLink size={13} /></a></div><div className="connection-row"><span><span className={`status-dot ${data?.webAvailable ? "" : "pending"}`} />Web search</span><span>{data?.webAvailable ? "Connected" : "External search available"}</span><a href={webUrl} target="_blank" rel="noreferrer">Search the web<ExternalLink size={13} /></a></div><p className="privacy-note">GrantRadar is free to schools. School staff do not need an API key.</p></section>
         </>}
-        <footer className="workspace-footer"><span>GrantRadar · A little help for a lot of possibility.</span><a href="/privacy">Privacy & your data</a></footer>
+        <footer className="workspace-footer"><span>GrantRadar · A little help for a lot of possibility.</span><div className="footer-links"><a href="/help">Help</a><a href="/privacy">Privacy & your data</a></div></footer>
       </main>
     </div>
     {detail && <GrantDetail grant={detail} school={school} saved={saved.find(item => item.grant.id === detail.id)} onSave={saveGrant} onClose={() => setDetail(null)} />}

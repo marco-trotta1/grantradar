@@ -1,5 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { catalog } from "../../lib/catalog";
+import { signInTestAccount } from "./helpers";
+
+test.beforeEach(async ({ context }) => { await signInTestAccount(context, { reset: true }); });
 
 async function stubSearch(page: Page) {
   await page.route("**/api/search?**", async route => {
@@ -21,6 +24,7 @@ async function onboard(page: Page) {
   await page.getByRole("button", { name: "Find my school’s grants" }).click();
   await expect(page.getByRole("heading", { name: "Funding for what comes next." })).toBeVisible();
   await expect(page.locator(".grant-card")).toHaveCount(6);
+  await expect(page.getByRole("status").filter({ hasText: "Saved to cloud" })).toBeVisible();
 }
 
 test("school setup, match details, saving, stages, notes, and reload persistence", async ({ page }) => {
@@ -34,6 +38,7 @@ test("school setup, match details, saving, stages, notes, and reload persistence
   await page.getByRole("button", { name: "Saved grants", exact: false }).first().click();
   await page.getByLabel("Application stage").selectOption("drafting");
   await page.getByLabel("Your notes").fill("Ask the principal to review the project budget.");
+  await expect(page.getByRole("status").filter({ hasText: "Saved to cloud" })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "Saved grants", exact: false }).first().click();
   await expect(page.getByLabel("Application stage")).toHaveValue("drafting");
@@ -73,13 +78,14 @@ test("invalid backups leave the school workspace intact", async ({ page }) => {
   await stubSearch(page); await onboard(page);
   await page.getByRole("button", { name: "Your school", exact: true }).click();
   await page.getByLabel("Restore a GrantRadar backup").setInputFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from('{"version":1}') });
-  await expect(page.getByRole("status")).toContainText("not a valid GrantRadar backup");
+  await expect(page.locator(".toast")).toContainText("not a valid GrantRadar backup");
   await expect(page.getByRole("heading", { name: "Riverside Test School", exact: true })).toBeVisible();
 });
 
-test("a separate browser context starts without another school's profile", async ({ page, browser }) => {
+test("a separate account cannot see another school's profile", async ({ page, browser }) => {
   await stubSearch(page); await onboard(page);
   const context = await browser.newContext();
+  await signInTestAccount(context, { second: true, reset: true });
   const otherPage = await context.newPage();
   await otherPage.goto("/");
   await expect(otherPage.getByLabel("School or district name")).toHaveValue("");
@@ -102,4 +108,5 @@ test("a school can score and track a grant found through external search", async
   await expect(page.getByRole("dialog")).toContainText("Verify current cycle");
   await expect(page.getByRole("dialog")).toContainText("Your school’s match");
   await expect(page.getByRole("dialog")).toContainText("Added by your school");
+  await expect(page.locator(".cloud-status")).toHaveText("Saved to cloud");
 });

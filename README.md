@@ -1,69 +1,55 @@
 # GrantRadar
 
-GrantRadar helps U.S. schools find and review grants. The service is free to school staff.
+GrantRadar helps U.S. schools find, score, and track grants. The service is free to school staff.
 
-[Open GrantRadar](https://grantradar-schools.vercel.app).
+[Open GrantRadar](https://grantradar-schools.vercel.app) · [School help](https://grantradar-schools.vercel.app/help)
 
-The production app uses Next.js, React, and strict TypeScript. Vercel hosts the app and its search routes.
+The app uses Next.js, React, strict TypeScript, Supabase, and Vercel. Resend sends the sign-in codes.
 
 ## Use the app
 
-1. Enter the school location, applicant type, grade bands, and funding priorities.
-2. Set the student count, project funding goal, and application support level.
-3. Search federal grants, browse the program directory, or search the web.
-4. Open a grant to inspect its source, eligibility, and score factors.
-5. Add external grant links, save grants, record notes, and update application stages.
-6. Export a backup before you change browsers or clear browser data.
+1. Enter your school email and the sign-in code.
+2. Enter the school location, applicant type, grade bands, and funding priorities.
+3. Set the student count, project funding goal, and application support level.
+4. Search federal grants, browse the program directory, or open a tailored web search.
+5. Inspect each grant's source, eligibility, and score factors.
+6. Save grants, record notes, and update application stages.
 
-The profile, saved grants, and notes stay in one browser profile. There is no cloud account or cross-device synchronization.
+Each email has one private school workspace. Use the same email on each device. Separate accounts do not share a workspace.
 
-## Run locally
+Cloud saves include the school profile, saved grants, application stages, and notes. Schools need no API keys or passwords.
 
-```sh
-npm ci --legacy-peer-deps
-npm run dev
-```
+## Cloud storage and recovery
 
-Open `http://localhost:3000`.
+The app keeps a recovery draft on the device before each save. It removes the draft after the cloud confirms the save.
 
-For a production build, run `npm run build`, then `npm start`.
+Failed saves retain the draft through a reload. Retry the save after the connection returns. Wait for “Saved to cloud” before closing.
 
-The lockfile records the exact package versions. The install flag avoids an npm conflict between optional test peers.
+Each save checks the cloud revision. Conflicting devices require an explicit choice. Staff can download both versions before choosing.
 
-## Search sources
+The cloud retains the previous 10 saves. Restore them from Your school. JSON backups and CSV exports remain available.
 
-Federal search uses the public Grants.gov `search2` and `fetchOpportunity` endpoints. These endpoints do not need an API key.
+An existing browser workspace moves into an account only after staff select the import control. The app preserves it until cloud confirmation.
 
-Search retrieves 12 federal results per page. The interface provides page controls. Detailed records load in batches of four requests.
+Each workspace supports 500 saved grants and 10 MB of data. Deleting an account removes its cloud workspace and history.
+
+Do not enter student records, passwords, or confidential student information. Sign out on shared computers.
+
+## Search and scores
+
+Federal search uses the public Grants.gov `search2` and `fetchOpportunity` endpoints. These endpoints need no API key.
+
+Federal search retrieves 12 results per page. Detailed records load in batches of four requests. Responses cache for 15 minutes.
 
 The program directory contains six official program links. These records do not assert that an application cycle is open.
 
-Web search uses Tavily when `TAVILY_API_KEY` is set on the server. Without the key, the interface provides a tailored external search link.
+Web search provides an external Google link tailored to the school location and funding priority. Staff can add and score external grant links.
 
-Web results remain unverified leads. The app does not invent deadlines, award amounts, or applicant requirements from snippets.
+Tavily remains optional. Set `TAVILY_API_KEY` on the server and redeploy to enable results inside the app.
 
-Staff can add grant links from an external search. These leads receive a score, saved notes, and an application stage.
+Web leads remain unverified. The app does not invent deadlines, award amounts, or eligibility rules from search snippets.
 
-Details entered by staff remain unverified. Their scores use the same evidence limits as other web leads.
-
-Federal responses cache for 15 minutes. Web responses cache for one hour. Provider failures appear in the interface.
-
-Sources: [Grants.gov API guide](https://www.grants.gov/api/api-guide), [Tavily search reference](https://docs.tavily.com/documentation/api-reference/endpoint/search).
-
-## Add the optional web search key
-
-1. Create a Tavily API key in the provider dashboard.
-2. Add `TAVILY_API_KEY` to the GrantRadar project’s production environment in Vercel.
-3. Redeploy the production app.
-4. Open Web search and confirm that results appear.
-
-For local use, copy `.env.example` to `.env.local` and set the value there.
-
-Do not commit credentials. Do not use a `NEXT_PUBLIC_` prefix. School staff do not need their own keys.
-
-## Match scores
-
-The score uses a fixed rubric. It does not use a language model or predict award probability.
+The match score uses a fixed rubric. It does not use a language model or predict award probability.
 
 | Factor | Maximum points |
 | --- | ---: |
@@ -77,57 +63,109 @@ A known applicant or grade mismatch caps the score at 30. A known service-area m
 
 Unverified leads and unknown applicants cap the score at 59. Forecasted grants cap it at 69. Closed grants score zero.
 
-The detail panel explains each factor and each adjustment. It also flags district applications, matching funds, and application support needs.
+The detail panel explains each adjustment. It flags district applications, matching funds, and application support needs.
 
-The project description stays local. Priority matching uses the selected categories. Title I status and rural setting trigger review notes.
+Title I status and rural setting trigger review notes. The student count provides context without implying eligibility.
 
-The student count provides school context. It does not imply eligibility when a grant lacks a student-count rule.
+Saved grant details are snapshots. Confirm the current cycle, rules, and exact deadline with the funder before applying.
 
-## Data and controls
+Sources: [Grants.gov API guide](https://www.grants.gov/api/api-guide), [Tavily search reference](https://docs.tavily.com/documentation/api-reference/endpoint/search).
 
-The app validates provider responses, profiles, imports, and source links at their boundaries. Source links must use HTTPS.
+## Run locally
 
-JSON backups contain the school profile and saved workspace. CSV exports include grant details, stages, and notes.
+```sh
+npm ci --legacy-peer-deps
+cp .env.example .env.local
+# Set the Supabase variables in .env.local.
+npm run dev
+```
 
-Calendar files use the published deadline date and a seven-day reminder. Confirm the exact cutoff time with the funder.
+Open `http://localhost:3000`. For a production build, run `npm run build`, then `npm start`.
 
-Saved grant details are snapshots. The interface displays the retrieval date. Confirm current rules before you apply.
+The public Supabase URL and publishable key identify the project. Row policies restrict database access to the authenticated owner.
 
-Search sends only search terms and applicant type to Grants.gov. Tavily receives search terms, the state, and one selected priority.
+The server secret supports account deletion. Keep it on the server. Never give it a `NEXT_PUBLIC_` prefix.
 
-The school name, student count, project description, notes, and saved grants are not included automatically in provider requests.
+The lockfile records the exact package versions. The install flag resolves the optional test peer conflict.
 
-The server rejects browser requests from other sites. It permits 15 searches per client per minute in each server instance.
+The self-hosted Geist font follows the requested Söhne style. The custom logo uses an original polygon aperture.
 
-This request limit is a local safeguard. It does not provide a global spending limit across server instances.
+## Provision an environment
 
-Set a provider spending limit before enabling a paid search key. Use Vercel firewall rules if traffic requires a shared limit.
+1. Create a Supabase project.
+2. Link it with `supabase link --project-ref PROJECT_REF`.
+3. Apply the migration with `supabase db push`.
+4. Add the three Supabase variables from `.env.example` to Vercel.
+5. Configure the Supabase email provider with a verified SMTP sender.
+6. Set the sign-in and confirmation templates to display `{{ .Token }}`.
+7. Set the code length to six digits and the expiry to 600 seconds.
+8. Enable email signup and email confirmation. Disable anonymous signup.
+9. Set the production site URL and the allowed local URLs.
+10. Deploy the app and run the email acceptance script.
 
-The font is self-hosted Geist, a sans serif in the requested Söhne style. A licensed local Söhne font takes priority if available.
+The production sender is `signin@mail.grantradar.irrigant.xyz`. Its Resend domain is verified. Production secrets remain in Vercel and Supabase.
 
-## Verification
+The local `supabase/config.toml` supports local development. It does not contain the production SMTP password.
+
+## Verify a release
 
 ```sh
 npm test
+npm run typecheck
 npm run build
 npx playwright install chromium
 npm start
 # In another terminal:
 npm run test:e2e
+supabase db advisors --linked --level warn --fail-on error
 ```
 
-Unit tests cover scoring, official response shapes, provider requests, missing evidence, unsafe links, request limits, and exports.
+Browser tests use two isolated, confirmed QA accounts. Put their credentials in `.env.e2e.local`.
 
-Browser tests cover onboarding, saved notes, application stages, downloads, mobile width, modal controls, invalid backups, and browser isolation.
+Set `E2E_EMAIL`, `E2E_PASSWORD`, `E2E_SECOND_EMAIL`, and `E2E_SECOND_PASSWORD`. Each account must belong to the configured Supabase project.
 
-Browser tests use fixed program records. Live federal searches require a separate smoke check. Live Tavily checks require the owner’s key.
+The tests clear these accounts' workspaces. Never use a school account. CI uses separate QA accounts and does not receive the server secret.
 
-## Deployment
+GitHub secrets contain the four QA credentials, the public Supabase URL, and the publishable key. Fork workflows do not receive these secrets.
 
-Vercel deploys the root Next.js app. The GitHub workflow checks tests, the production build, and browser workflows.
+Unit tests cover scoring, providers, exports, input validation, revision recovery, and origin checks.
 
-The original `frontend/`, `backend/`, and static assets remain as legacy source. The production deployment excludes these directories.
+Browser tests cover school workflows, cross-device storage, account isolation, save conflicts, failed saves, migration, history, and sign-out.
 
-The former backend requires database and provider credentials. It is not part of the current app and receives no production traffic.
+Search responses use fixed records during browser tests. Auth and cloud storage use the real GrantRadar project with isolated QA accounts.
+
+For email acceptance, add `RESEND_API_KEY` to the ignored `.env.mail.local` file. Run `node scripts/verify-email.mjs`.
+
+The script sends to Resend's simulated recipient. It verifies the code, history retention, and account deletion. It removes its temporary account.
+
+Set `TEST_BASE_URL` to verify a deployed app. A separate smoke check verifies the live federal provider.
+
+## Owner operations
+
+Vercel deploys the root app. GitHub checks unit tests, the production build, and browser workflows before release.
+
+The current services use free plans. Check provider usage and delivery errors before inviting a large school group.
+
+Resend permits 100 emails per day and 3,000 per month on its free plan. Supabase limits GrantRadar to 60 sign-in emails per hour.
+
+Source: [Resend free tier](https://resend.com/blog/new-free-tier).
+
+Supabase can pause a free project after one week of inactivity. An owner must restore it if that occurs.
+
+Source: [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing).
+
+Free plans do not provide an uptime guarantee. Monitor the service, retain database exports, and review provider account notices.
+
+School staff need no infrastructure setup. The owner retains responsibility for provider accounts, quotas, recovery, and support.
+
+The search route permits 15 requests per client per minute in each server instance. This limit does not provide a global spending cap.
+
+Set a provider spending cap before enabling a paid search key. Use Vercel firewall rules if traffic requires a shared request limit.
+
+The school name, student count, project description, notes, and saved grants are not included automatically in search provider requests.
+
+The help page links to GitHub support. A GitHub account is required to open an issue. Do not put private school data in issues.
+
+The original `frontend/`, `backend/`, and static assets remain as legacy source. Vercel excludes them from production.
 
 The previous GitHub Pages address redirects to the production app.
