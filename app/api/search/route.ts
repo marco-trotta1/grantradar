@@ -39,8 +39,7 @@ export async function GET(request: NextRequest) {
     } catch { warnings.push("Grants.gov is unavailable. Try again or browse the program directory."); }
   }
   if (mode === "web") {
-    if (!process.env.TAVILY_API_KEY) warnings.push("Web search is not connected yet. Use the web search link or browse federal grants.");
-    else try { grants = await webSearch({ query: q, state, priority }); total = grants.length; }
+    if (process.env.TAVILY_API_KEY) try { grants = await webSearch({ query: q, state, priority }); total = grants.length; }
     catch { warnings.push("Web search is unavailable. Try again or use the web search link."); }
   }
   grants = grants.filter((grant, index, array) => array.findIndex(item => item.url === grant.url) === index);

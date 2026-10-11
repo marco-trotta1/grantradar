@@ -28,7 +28,7 @@ export function GrantDetail({ grant, school, saved, onSave, onClose }: {
       </section>
       {match.warnings.length > 0 && <section className="review-box"><h3><Info size={17} />Check before you apply</h3><ul>{match.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></section>}
       <section><h3>A useful next step</h3><p>Read the full notice. Confirm the applicant, deadline, project budget, and required documents with the funder.</p>{grant.source === "federal" && <p>Check SAM.gov and Grants.gov registration needs with your school district before you start.</p>}</section>
-      <p className="privacy-note">{grant.source === "directory" ? "Program link reviewed" : "Source retrieved"}: {new Date(grant.retrievedAt).toLocaleDateString("en-US")}. Source details can change.</p>
+      <p className="privacy-note">{grant.id.startsWith("custom-") ? "Added by your school" : grant.source === "directory" ? "Program link reviewed" : "Source retrieved"}: {new Date(grant.retrievedAt).toLocaleDateString("en-US")}. Source details can change.</p>
       <div className="detail-footer"><a className="button primary" href={grant.url} target="_blank" rel="noopener noreferrer">Open official source<ExternalLink size={16} /></a><button className="button secondary" onClick={() => onSave(grant)}>{saved ? <Check size={16} /> : <Bookmark size={16} />}{saved ? "Saved" : "Save grant"}</button>{grant.deadline && <button className="button secondary" onClick={addCalendar}><CalendarDays size={16} />Add deadline</button>}</div>
     </article>
   </dialog>;

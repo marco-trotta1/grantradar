@@ -6,7 +6,7 @@ async function stubSearch(page: Page) {
     const url = new URL(route.request().url());
     const web = url.searchParams.get("mode") === "web";
     await route.fulfill({ json: { grants: web ? [] : catalog, total: web ? 0 : catalog.length,
-      federalAvailable: false, webAvailable: false, hasMore: false, warnings: web ? ["Web search is not connected yet."] : [], searchedAt: new Date().toISOString() } });
+      federalAvailable: false, webAvailable: false, hasMore: false, warnings: [], searchedAt: new Date().toISOString() } });
   });
 }
 async function onboard(page: Page) {
@@ -60,6 +60,7 @@ test("mobile layout fits the screen and a grant dialog closes with Escape", asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await stubSearch(page); await onboard(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await page.locator(".source-tabs").evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.getByRole("button", { name: "STEM classroom grants · Grades K–5", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
@@ -83,4 +84,22 @@ test("a separate browser context starts without another school's profile", async
   await otherPage.goto("/");
   await expect(otherPage.getByLabel("School or district name")).toHaveValue("");
   await context.close();
+});
+
+test("a school can score and track a grant found through external search", async ({ page }) => {
+  await stubSearch(page); await onboard(page);
+  await page.getByRole("button", { name: "Web search", exact: true }).click();
+  await page.getByRole("button", { name: "Add a grant link", exact: true }).click();
+  await page.getByLabel("Grant title", { exact: true }).fill("Local STEM classroom grant");
+  await page.getByLabel("Source website", { exact: true }).fill("http://foundation.example/grants");
+  await page.getByRole("button", { name: "Save grant link", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText("secure website");
+  await page.getByLabel("Source website", { exact: true }).fill("https://foundation.example/grants");
+  await page.getByLabel("What the grant funds", { exact: false }).fill("Science equipment and STEM projects for elementary schools.");
+  await page.getByRole("button", { name: "Save grant link", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Local STEM classroom grant", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Local STEM classroom grant", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("Verify current cycle");
+  await expect(page.getByRole("dialog")).toContainText("Your school’s match");
+  await expect(page.getByRole("dialog")).toContainText("Added by your school");
 });

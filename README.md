@@ -12,7 +12,7 @@ The production app uses Next.js, React, and strict TypeScript. Vercel hosts the 
 2. Set the student count, project funding goal, and application support level.
 3. Search federal grants, browse the program directory, or search the web.
 4. Open a grant to inspect its source, eligibility, and score factors.
-5. Save grants, record notes, and update application stages.
+5. Add external grant links, save grants, record notes, and update application stages.
 6. Export a backup before you change browsers or clear browser data.
 
 The profile, saved grants, and notes stay in one browser profile. There is no cloud account or cross-device synchronization.
@@ -41,6 +41,10 @@ The program directory contains six official program links. These records do not 
 Web search uses Tavily when `TAVILY_API_KEY` is set on the server. Without the key, the interface provides a tailored external search link.
 
 Web results remain unverified leads. The app does not invent deadlines, award amounts, or applicant requirements from snippets.
+
+Staff can add grant links from an external search. These leads receive a score, saved notes, and an application stage.
+
+Details entered by staff remain unverified. Their scores use the same evidence limits as other web leads.
 
 Federal responses cache for 15 minutes. Web responses cache for one hour. Provider failures appear in the interface.
 
