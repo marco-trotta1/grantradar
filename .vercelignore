@@ -1,0 +1,10 @@
+frontend/
+backend/
+assets/
+.aidesigner/
+.github/
+test-results/
+playwright-report/
+index.html
+404.html
+docker-compose.yml
